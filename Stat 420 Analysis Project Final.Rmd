@@ -1,0 +1,299 @@
+---
+title: 'Predicting House Prices: Stat 420 Analysis Project'
+author: "Jing Kai Goh, Ruoxin Li, Nurul Farisha Zilkiffli, Owen Adhikaputra"
+date: "12/8/2017"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    theme: readable
+    toc: yes
+---
+
+# Introduction
+House prices all around the world has been on the rise since the year 1940. However, does an average home buyer knows what are the main factors or elements of the house that determines that particular house price? Hence, this analysis is done based on the 'Ames Housing dataset' to determine the factors that influence the sale price of a house. This analysis would result in a best prediction model that could be utilized by home buyers to get a good idea on the approximate price of a house of their choice. 
+
+# Background
+This 'Ames Housing dataset' was acquired from Kaggle (https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data), a predictive modeling and analysis competition platform which encourages the public to put their analytic and predictive skills to use. The data set is about the house prices in Ames, Iowa and was compiled by Dean De Cock to be used for data science education. It also serves as a modernized alternative to the Boston Housing dataset. The datasets include both a train and test dataset. However, we will only be utilizing the ‘train’ datas to construct an effective predicting model.  
+
+# Description of Datas
+Due to the extensive size of the original data set, we have cleaned the data in excel to remove missing values and insignificant and redundant variables. The cleaned dataset thus has a mixture of 36 numerical and categorical variables with 1422 total observation. The variables are as below:
+
+* `1stFlrSF` - First Floor square feet
+* `2ndFlrSF` - Second Floor square feet
+* `BedroomAbvGr` - Bedroom Above Grade
+* `BldgType` - Type of dwelling
+* `BsmtQual` - Height of the basement
+* `CentralAir` - Central air conditioning
+* `Electrical` - Electrical system
+* `ExterQual` - Exterior material quality
+* `Fireplaces` - Number of fireplaces
+* `Foundation` - Type of foundation
+* `FullBath` - Full bathrooms above grade
+* `Functional` - Home functionality rating
+* `GarageArea` - Size of garage in square feet
+* `GarageQual` - Garage quality
+* `GrLivArea` - Above grade (ground) living area square feet
+* `Heating` - Type of heating
+* `HeatingQC` - Heating quality and condition
+* `HouseStyle` - Style of dwelling
+* `KitchenAbvGr` - Kitchen above grade
+* `KitchenQual` - Kitchen quality
+* `LotArea` - Lot size in square feet
+* `MSSubClass` - The building class
+* `MSZoning` - The general zoning classification
+* `Neighborhood` - Physical locations within Ames city limits
+* `OverallCond` - Overall condition rating
+* `OverallQual` - Overall material and finish quality
+* `PavedDrive` - Paved driveway
+* `RoofMatl` - Roof material
+* `SaleCondition` - Condition of sale
+* `SaleType` - Type of sale
+* `Street` - Type of road access
+* `TotalBsmtSF` - Total basement square feet
+* `TotRmsAbvGrd` - Total rooms above grade (does not include bathrooms)
+* `YearBuilt` - Original construction date
+* `YearRemodAdd` - Remodel date
+* `SalePrice` - The property's sale price in dollars. This is the target variable of prediction.
+
+# Method
+
+## Packages Used
+Before starting our model construction, we first introduce the packages that will be used in the process of building our model into the R Studio Environment.
+
+```{r}
+library("faraway")
+library("pedometrics")
+library("lmtest")
+library("MASS")
+```
+
+## Load the Dataset
+
+We start off by loading the csv file into r and converting it into a dataframe.
+
+```{r}
+housingprice = read.csv("HousingPriceCleaned.csv")
+housingprice.df = data.frame(housingprice)
+HP.DF = na.omit(housingprice.df)
+```
+
+## Constructing the Full Model
+
+Next, we create a full model consisting of all of the variables, with `SalePrice` as the response. 
+
+```{r}
+full_mod = lm(SalePrice~., data = HP.DF)
+```
+
+## AIC Stepwise Selection
+
+Since the full model is very big considering that it contains a lot of variables, we have utilized the Akaike Information Criterion (AIC) stepwise selection going in both backward and forward direction to select the most suitable variables to be included in the model.
+
+```{r}
+housingprice_mod_both_aic = step(full_mod, direction = "both")
+summary(housingprice_mod_both_aic)
+```
+
+The AIC in both direction model has a Multiple R-squared of 0.8713, signifying that this model explains 87.13% of the variability in the dataset. The F-statistics is 161.8 while the p-value is 2.2e-16 which is approximately 0. 
+
+## Test for Collinearity
+
+Since the model is quite significant, we proceed to checking for any multicollinearity between the variables within the model. To test for multicollinearity, we used the Variance Inflation Factor (VIF) values as an indicator and utilized the `stepVIF` function to drop the variable with VIF exceed threshold range. Then we process the AIC again.  
+
+```{r}
+housingprice_vif = stepVIF(housingprice_mod_both_aic,5,TRUE)
+summary(housingprice_vif)
+hP_vif_aic = step(housingprice_vif, direction = "both")
+summary(hP_vif_aic)
+```
+
+After filtering the large VIF value, the remaining predictors in the model are `MSSubClass`, `LotArea`, `OverallQual`, `OverallCond`, `YearBuilt`, `GrLivArea`, `BedroomAbvGr`, `KitchenAbvGr`, `Fireplaces`, `GarageArea` which are numeric variables while `Street`, `HouseStyle`, `RoofStyle`, `ExterQual`, `BsmtQual`, `KitchenQual`, `Functional`, `SaleType` are categorical variables.
+
+Looking at the both direction AIC model after excluding all collinearate variable, the model has  Multiple R-squared value of 0.8656, signifying that this model explains 86.56% of the variability in the dataset. The F-statistics is 174 while the p-value is 2.2e-16 which is approximately 0.
+
+## Incorporating Interaction Variables
+
+To determine potential interaction predictors, we plotted the scatter plot of the observations, seperating the categorical factors by color.
+
+```{r}
+plot(SalePrice~GarageArea, col = ExterQual, data = HP.DF)
+```
+
+Next, we constructed an interaction model based on the potential interaction predictors.
+
+```{r}
+HP.int = lm(SalePrice ~ Street + MSSubClass + LotArea +  HouseStyle + 
+    OverallQual + OverallCond + YearBuilt + RoofMatl + ExterQual + 
+    BsmtQual + GrLivArea + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    Functional + Fireplaces + GarageArea + SaleType +( MSSubClass+ LotArea + GrLivArea+BedroomAbvGr+GarageArea+ OverallQual) * (ExterQual + BsmtQual+KitchenQual), data = HP.DF)
+summary(HP.int)
+```
+
+The interaction model gives us a Multiple R-squared value of 0.8901, with a F-statistic of 98.67 and a p-vlaue of approximately 0. Comparing the Multiple R-Squared value of this interaction model with the hp_vif_aic model of 0.8656, we can see that the interaction model explains more of the variability present in the model. 
+
+## Reducing the Interaction Model
+
+In order to further reduce the interaction model, we have once again performed the AIC stepwise selection to determine the best interaction variables to be included in the reduced interaction model.
+
+```{r}
+HP.int_aic = step(HP.int,direction = "both")
+summary(HP.int_aic)
+anova(HP.int_aic, HP.int)
+```
+
+Based on the ANOVA test, these two models are not significantly different. Thus, we chose to use the smaller model (HP.int_aic). The Multiple R-squared value of this model is 0.888 with a F-statistic of 140.2 and a p-value of approximately 0.
+
+## Check for Unusual Observations
+
+Proceeding with building the best model, we checked for any unsual observations which are points that are outliers, have high leverage and high influence on the model. We then continued with creating a new dataset exlcuding the highly influential observations to be used in forming our final model.
+
+```{r}
+leverage = c(which(hatvalues(HP.int_aic) > 2 * mean(hatvalues(HP.int_aic))))
+
+outliners = rstandard(HP.int_aic)[abs(rstandard(HP.int_aic)) > 2]
+
+influence  = which(cooks.distance(HP.int_aic) > 4 / length(cooks.distance(HP.int_aic)))
+
+HP.DF_influence = HP.DF[-influence,]
+```
+
+## Create a Model Using the New Dataset
+
+After removing the influential observations, we construct a new model with the new dataset. (Note: After removing the influential observations, the level 'FA' in the `ExterQual` variable only has 2 records remaining, which will not support the interaction model. Hence, a decision has been made to exclude the interaction variable between `ExterQual` and `GrLivArea`, as well as `ExterQual` and `BedroomAbvGr`.)
+
+```{r}
+HP.int_aic_influence = lm(SalePrice ~ Street + MSSubClass + LotArea + HouseStyle + 
+    OverallQual + OverallCond + YearBuilt + RoofMatl + ExterQual + 
+    BsmtQual + GrLivArea + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    Functional + Fireplaces + GarageArea + SaleType + MSSubClass:BsmtQual + 
+    LotArea:BsmtQual + BsmtQual:GrLivArea + 
+    GrLivArea:KitchenQual + BsmtQual:GarageArea + 
+    OverallQual:BsmtQual, data = HP.DF_influence)
+
+summary(HP.int_aic_influence)
+```
+
+Looking at this model that excluded the influential observations, we can see that the Multiple R-Squared value has increased from 0.888 to 0.9314, which symbolizes that excluding the influencial observations has improved the performance of the model. This model has a F-statistic of 250.5 and a p-value of approximately 0.
+
+## Check for Assumption
+
+After checking for the unusual observations, we advanced to check for the normality assumption and constant variance assumption of the model.
+
+
+- For constant variance:
+```{r}
+plot(fitted(HP.int_aic_influence), resid(HP.int_aic_influence), col = "grey", pch = 20,
+     xlab = "Fitted", ylab = "Residuals", main = "interaction model after stepwise search with influence removed")
+abline(h = 0, col = "darkorange", lwd = 2)
+
+bptest(HP.int_aic_influence)
+```
+
+As seen from the graph, the model does not have a constant variance. We reaffirmed this notion by performing the Breusch-Pagan Test. The Breusch-Pagan test has a p-value of approximately 0 which tells us that the constant variance assumption is violated.
+
+- For Normality Assumption:
+```{r}
+qqnorm(resid(HP.int_aic_influence), main = "Normal Q-Q Plot, interaction model after stepwise search with influence removed ", col = "darkgrey")
+qqline(resid(HP.int_aic_influence), col = "dodgerblue", lwd = 2)
+
+shapiro.test(resid(HP.int_aic_influence))
+```
+
+The QQ-Plot shows that the normality assumption is violated. This notion is confirmed by performing the Shapiro Wilk test. The Shapiro-Wilk test returns a p-value of approximately 0 which tells us that the normality assumption is violated. 
+
+## Transformation of Model
+
+To address this model that does not fulfill the constant variance assumption and normality assumption, transformation is carried out to coerce the datas to have similar distribution. 
+
+###(a) Log Transformation
+
+We applied the log() transformation on the response variable which is the `SalePrice` variable.
+
+```{r}
+HP.int_aic_influence_log = lm(log(SalePrice) ~ Street + MSSubClass + LotArea + HouseStyle + 
+    OverallQual + OverallCond + YearBuilt + RoofMatl + ExterQual + 
+    BsmtQual + GrLivArea + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    Functional + Fireplaces + GarageArea + SaleType + MSSubClass:BsmtQual + 
+    LotArea:BsmtQual + BsmtQual:GrLivArea + 
+    GrLivArea:KitchenQual + BsmtQual:GarageArea + 
+    OverallQual:BsmtQual, data = HP.DF_influence)
+bptest(HP.int_aic_influence_log)
+shapiro.test(resid(HP.int_aic_influence_log))
+```
+
+Looking at the Breusch-Pagan test on this transformed model, the constant variance assumption is now fulfilled. However, the Shapiro-Wilk test shows that the normality assumption is still violated. 
+
+###(b) Box-Cox
+
+Since the log transformation method did not manage to address the violation of normality assumption, we utilized the box-cox transformation method instead.
+
+```{r}
+boxcox(HP.int_aic_influence_log,lambda = seq(6, 9, by = 1), plotit = TRUE)
+#lambda is equal to 7.5
+HP.int_aic_influence_log_BC = lm(((log(SalePrice)^7.5-1)/7.5) ~ Street + MSSubClass + LotArea + HouseStyle + 
+    OverallQual + OverallCond + YearBuilt + RoofMatl + ExterQual + 
+    BsmtQual + GrLivArea + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    Functional + Fireplaces + GarageArea + SaleType + MSSubClass:BsmtQual + 
+    LotArea:BsmtQual + BsmtQual:GrLivArea + 
+    GrLivArea:KitchenQual + BsmtQual:GarageArea + 
+    OverallQual:BsmtQual, data = HP.DF_influence)
+shapiro.test(resid(HP.int_aic_influence_log_BC))
+bptest(HP.int_aic_influence_log_BC)
+```
+
+However, even after applying the box-cox transformation, the normality assumption is still violated even though the constant vairance assumption is not vilated.
+
+###(c) Removing Outliers
+
+After the log transformation and box-cox transformation failed to address the violation of the normality assumption, we decided to remove outliers from the log transformed model to see whether will the normality assumption be fixed. 
+
+```{r}
+outliners_BC =  rstandard(HP.int_aic_influence_log_BC)[abs(rstandard(HP.int_aic_influence_log_BC)) > 2]
+outliners_BCna = na.omit(outliners_BC)
+outliners_BCna
+HP.DF_influence_OUT = HP.DF_influence[-c(14,30,31,90,111,136,139,150,185,203,219,226,302,329,367,368,387,395,413,432,441,449,503,518,530,572,578,615,640,643,663,679,688,695,701,709,751,770,785,838,851,882,891,948,959,963,991,1029,1032,1092,1144,1176,1206,1207,1272,1305,1316,1344,1364,1375,1392),]
+
+HP.int_aic_influence_log_BC_out = lm(((log(SalePrice)^7.5-1)/7.5) ~ Street + MSSubClass + LotArea + HouseStyle + 
+    OverallQual + OverallCond + YearBuilt + RoofMatl + ExterQual + 
+    BsmtQual + GrLivArea + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    Functional + Fireplaces + GarageArea + SaleType + MSSubClass:BsmtQual + 
+    LotArea:BsmtQual + BsmtQual:GrLivArea + 
+    GrLivArea:KitchenQual + BsmtQual:GarageArea + 
+      OverallQual:BsmtQual, data = HP.DF_influence_OUT)
+shapiro.test(resid(HP.int_aic_influence_log_BC_out))
+bptest(HP.int_aic_influence_log_BC_out)
+```
+
+Even after excluding the outliers, the Shapiro-Wilk Test still shows that the Normality assumption is violated.
+
+Hence, even after many attempts at correcting the violation of the normality assumtion, we did not manage to address this problem. This is probably due to the dataset's original distribution that is not normal and we were unable to transform it to make it normally distributed.
+
+## Determine the Final Model (Best Model)
+
+To determine which model is the best model in predicting house prices after addressing the constant variance assumption, we look at the Multiple R-Squared value of all three models.
+
+```{r}
+summary(HP.int_aic_influence_log)$r.squared
+summary(HP.int_aic_influence_log_BC)$r.squared
+summary(HP.int_aic_influence_log_BC_out)$r.squared
+```
+
+Based on the Multiple R-squared of all three models, we decided to use the model with the highest Multiple R-squared of 0.9277406 which is the box-cox transformation model which signifies that 92.77406% of the variability is explained by this model.
+
+# Final Model
+
+After going through the variable selection, implementing interaction variables, checking for unusual observations and checking for assumptions, we have our final model of:
+
+```{r}
+HP.int_aic_influence_log_BC = lm(((log(SalePrice)^7.5-1)/7.5) ~ Street + MSSubClass + LotArea + HouseStyle + 
+    OverallQual + OverallCond + YearBuilt + RoofMatl + ExterQual + 
+    BsmtQual + GrLivArea + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    Functional + Fireplaces + GarageArea + SaleType + MSSubClass:BsmtQual + 
+    LotArea:BsmtQual + BsmtQual:GrLivArea + 
+    GrLivArea:KitchenQual + BsmtQual:GarageArea + 
+    OverallQual:BsmtQual, data = HP.DF_influence)
+summary(HP.int_aic_influence_log_BC)
+```
+
+This model has a Multiple R-squared value of 0.9277 which means that 92.77% of the variability in the dataset is explained by this model, with a F-test statistic of 237 and a p-value of approximately 0. This model also fulfills the constant varaince assumption. 
